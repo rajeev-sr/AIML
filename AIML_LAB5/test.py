@@ -143,3 +143,61 @@ def video_detection_tracking(video_path, save_output=False, output_path="output.
 video_path = "video.mp4"  # Replace with your video file path
 video_detection_tracking(video_path, save_output=True, output_path="detected_output.avi")
 
+
+
+#segmentation
+import cv2
+import numpy as np
+from ultralytics import YOLO
+
+# Load segmentation model
+print("Loading YOLOv8 segmentation model...")
+model = YOLO("yolov8n-seg.pt")
+print("Model loaded successfully!")
+
+# Input image path
+image_path = "image.jpg"   # replace with your image
+image = cv2.imread(image_path)
+
+# Run inference
+results = model(image)
+
+# Process segmentation results
+for result in results:
+    if result.masks is not None:
+        masks = result.masks.data.cpu().numpy()   # [N, H, W] masks
+        boxes = result.boxes.xyxy.cpu().numpy()   # bounding boxes
+        classes = result.boxes.cls.cpu().numpy()  # class indices
+        confidences = result.boxes.conf.cpu().numpy()
+
+        for i, (box, cls, conf) in enumerate(zip(boxes, classes, confidences)):
+            if conf > 0.5:  # confidence threshold
+                x1, y1, x2, y2 = map(int, box)
+                class_name = model.names[int(cls)]
+
+                # Create colored mask
+                mask = masks[i]
+                colored_mask = np.zeros_like(image, dtype=np.uint8)
+                color = (0, 255, 0)  # green mask
+                colored_mask[mask > 0.5] = color
+
+                # Overlay mask on image
+                image = cv2.addWeighted(image, 1, colored_mask, 0.5, 0)
+
+                # Draw bounding box
+                cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+
+                # Add label
+                label = f"{class_name} {conf:.2f}"
+                cv2.putText(image, label, (x1, y1 - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+# Show output
+cv2.imshow("YOLOv8 Image Segmentation", image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
+
+# Save result
+cv2.imwrite("segmented_output.jpg", image)
+print("Segmentation saved as segmented_output.jpg")
+
